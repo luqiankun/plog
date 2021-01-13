@@ -13,7 +13,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
-#include<chrono>
+#include <chrono>
 #include <ctime>
 
 namespace fs = std::filesystem;
@@ -50,16 +50,11 @@ public :
 
     std::string dateTime() const;
 
-    std::string time() const;
-
     std::string formatTime() const;
-
-    uint64_t timestamp() const
-    { return timestamp_; }
 
 private:
     uint64_t timestamp_;
-    static const uint32_t KUSEC = 1000000;
+    static const uint32_t SEC = 1000000;
 };
 
 class LogBuffer
@@ -75,21 +70,10 @@ public:
 
     bool append(const std::string &str);
 
-    uint64_t getAvail() const
-    { return can_use; }
-
     void setStatus(status sta);
 
     status getStatus() const
     { return curr_status; };
-
-    void clear()
-    {
-        curr_pos = 0;
-        curr_status = status::FREE;
-        can_use = max_size;
-        data = "";
-    };
 
     std::string getData()
     { return data; };
@@ -109,7 +93,7 @@ class LogFile
 {
 
 public:
-    LogFile(const std::string &path, uintmax_t size);
+    LogFile(const std::string &exe_name, const std::string &path, uintmax_t size);
 
     static std::uintmax_t getFileSize(const std::string &file_name);
 
@@ -122,15 +106,16 @@ public:
     std::string curr_file_name;
     std::string path;
     uintmax_t max_size;
+    std::string exe_name;
 private:
-    LogTime Time;
     uint32_t N = 0;
 };
 
 class Logger
 {
 public:
-    explicit Logger(uint64_t len = 4096, const std::string &path = "./log", uintmax_t size = 1000 * 10 * 1024);
+    explicit Logger(const std::string &argv, uint64_t len = 4096, const std::string &path = "./log",
+                    uintmax_t size = 1000 * 10 * 1024);
 
     void write(const std::string &msg) const;
 
@@ -154,13 +139,13 @@ public:
 };
 
 /***********************************************/
-Logger::Logger(uint64_t len_, const std::string &path_, const uintmax_t size_)
+Logger::Logger(const std::string &argv, uint64_t len_, const std::string &path_, const uintmax_t size_)
 {
     len = len_;
     path = path_;
     size = size_;
     ready = false;
-    auto x = new LogFile(path, size);
+    auto x = new LogFile(argv, path, size);
     file = std::shared_ptr<LogFile>(x);
     auto *temp = new LogBuffer(len);
     curr_in_buffer = std::shared_ptr<LogBuffer>(temp);
@@ -270,13 +255,17 @@ void LogBuffer::setStatus(status sta)
 }
 
 /*************************************************/
-LogFile::LogFile(const std::string &path, const uintmax_t size) : path(path), max_size(size)
+LogFile::LogFile(const std::string &exe_name, const std::string &path, const uintmax_t size) : exe_name(exe_name),
+                                                                                               path(path),
+                                                                                               max_size(size)
 {
     if (!fs::exists(path))
     {
         fs::create_directories(path);
     }
-    curr_file_name = LogTime::now().date() + "(" + std::to_string(N) + ").log";
+    fs::path p(exe_name);
+    curr_file_name = LogTime::now().date() + "(" + std::to_string(N) + ")." + p.filename().string() + "." +
+                     std::to_string(_getpid()) + ".log";
 }
 
 std::uintmax_t LogFile::getFileSize(const std::string &file_name)
@@ -286,9 +275,9 @@ std::uintmax_t LogFile::getFileSize(const std::string &file_name)
 
 void LogFile::writeMessage(const std::string &msg)
 {
-    if (fs::exists(path + "\/" + curr_file_name))
+    if (fs::exists(path + "/" + curr_file_name))
     {
-        if (getFileSize(path + "\/" + curr_file_name) >= max_size)
+        if (getFileSize(path + "/" + curr_file_name) >= max_size)
         {
             if (file.is_open())
             {
@@ -296,11 +285,13 @@ void LogFile::writeMessage(const std::string &msg)
             }
             N++;
         }
-        curr_file_name = LogTime::now().date() + "(" + std::to_string(N) + ").log";
+        fs::path p(exe_name);
+        curr_file_name = LogTime::now().date() + "(" + std::to_string(N) + ")." + p.filename().string() + "." +
+                         std::to_string(_getpid()) + ".log";
     }
     if (!file.is_open())
     {
-        file.open(path + "\/" + curr_file_name, std::ios::app);
+        file.open(path + "/" + curr_file_name, std::ios::app);
     }
     file << msg;
 }
@@ -325,11 +316,11 @@ LogTime LogTime::now()
 std::string LogTime::dateTime() const
 {
     static thread_local time_t sec = 0;
-    static thread_local char datatime[26]{};//2021-01-12 12.31.24
-    time_t nowsec = timestamp_ / KUSEC;
-    if (nowsec > sec)
+    static thread_local char datetime[26]{};//2021-01-12 12.31.24
+    time_t now_sec = timestamp_ / SEC;
+    if (now_sec > sec)
     {
-        sec = nowsec;
+        sec = now_sec;
         struct tm time_{};
 #ifdef __linux
         localtime_r(&sec, &time_);
@@ -337,22 +328,15 @@ std::string LogTime::dateTime() const
         localtime_s(&time_, &sec);
 #endif // __linux
 
-        strftime(datatime, sizeof(datatime), "%Y-%m-%d %H.%M.%S", &time_);
+        strftime(datetime, sizeof(datetime), "%Y-%m-%d %H.%M.%S", &time_);
     }
-    return datatime;
-}
-
-std::string LogTime::time() const
-{
-    std::string time(dateTime(), 11, 18);
-    time.erase(std::remove(time.begin(), time.end(), '.'), time.end());
-    return time;
+    return datetime;
 }
 
 std::string LogTime::formatTime() const
 {
     char format[28];
-    auto micro = static_cast<uint32_t>(timestamp_ % KUSEC);
+    auto micro = static_cast<uint32_t>(timestamp_ % SEC);
     snprintf(format, sizeof(format), "%s.%06u", dateTime().c_str(), micro);
     return format;
 }
