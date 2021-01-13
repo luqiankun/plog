@@ -264,8 +264,7 @@ LogFile::LogFile(const std::string &exe_name, const std::string &path, const uin
         fs::create_directories(path);
     }
     fs::path p(exe_name);
-    curr_file_name = LogTime::now().date() + "(" + std::to_string(N) + ")." + p.filename().string() + "." +
-                     std::to_string(_getpid()) + ".log";
+    curr_file_name = LogTime::now().date() + "(" + std::to_string(N) + ")." + p.filename().string() + ".log";
 }
 
 std::uintmax_t LogFile::getFileSize(const std::string &file_name)
@@ -286,8 +285,7 @@ void LogFile::writeMessage(const std::string &msg)
             N++;
         }
         fs::path p(exe_name);
-        curr_file_name = LogTime::now().date() + "(" + std::to_string(N) + ")." + p.filename().string() + "." +
-                         std::to_string(_getpid()) + ".log";
+        curr_file_name = LogTime::now().date() + "(" + std::to_string(N) + ")." + p.filename().string() + ".log";
     }
     if (!file.is_open())
     {
