@@ -19,10 +19,18 @@
 #if (_WIN32 || WIN64)
 #define MY_FILE(x) strrchr(x,'\\')?strrchr(x,'\\')+1:x
 #else
-#define MYFILE(x) strrchr(x,'/')?strrchr(x,'/')+1:x
+#define MY_FILE(x) strrchr(x,'/')?strrchr(x,'/')+1:x
 #endif
+
+inline std::string pid()
+{
+    std::stringstream ss;
+    ss << std::this_thread::get_id();
+    return ss.str();
+}
+
 namespace fs = std::filesystem;
-#define LOG_INFO(msg) logger.addToBuffer("INFO "+LogTime::now().formatTime()+" "+std::to_string(*(unsigned int *)&std::this_thread::get_id())+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"@"+__FUNCTION__+"]"+msg+"\n");
+#define LOG_INFO(msg) logger.addToBuffer("[INFO "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
 #define LOG_ERROR(msg) logger.addToBuffer("INFO "+LogTime::now().formatTime()+" "+std::to_string(*(unsigned int *)&std::this_thread::get_id())+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"@"+__FUNCTION__+"]"+msg+"\n");
 #define LOG_WARN(msg) logger.addToBuffer("INFO "+LogTime::now().formatTime()+" "+std::to_string(*(unsigned int *)&std::this_thread::get_id())+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"@"+__FUNCTION__+"]"+msg+"\n");
 #define LOG_DEBUG(msg) logger.addToBuffer("INFO "+LogTime::now().formatTime()+" "+std::to_string(*(unsigned int *)&std::this_thread::get_id())+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"@"+__FUNCTION__+"]"+msg+"\n");
@@ -108,7 +116,7 @@ class Logger
 {
 public:
     explicit Logger(const std::string &argv, uint64_t len = 4096, const std::string &path = "./log",
-                    uintmax_t size = 1000 * 10 * 1024);
+                    uintmax_t size = 1000 * 1000 * 1024);
 
     void write(const std::string &msg) const;
 
