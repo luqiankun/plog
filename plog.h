@@ -115,7 +115,7 @@ class Logger
 {
 public:
     explicit Logger(const std::string &argv, uint64_t len = 4096, const std::string &path = "./log",
-                    uintmax_t size = 1000 * 1000 * 1024);
+                    uintmax_t size = 1000 * 10 * 1024);//默认单个文件10MB
 
     void write(const std::string &msg) const;
 
