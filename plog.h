@@ -31,10 +31,9 @@ inline std::string pid()
 
 namespace fs = std::filesystem;
 #define LOG_INFO(msg) logger.addToBuffer("[INFO "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
-#define LOG_ERROR(msg) logger.addToBuffer("INFO "+LogTime::now().formatTime()+" "+std::to_string(*(unsigned int *)&std::this_thread::get_id())+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"@"+__FUNCTION__+"]"+msg+"\n");
-#define LOG_WARN(msg) logger.addToBuffer("INFO "+LogTime::now().formatTime()+" "+std::to_string(*(unsigned int *)&std::this_thread::get_id())+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"@"+__FUNCTION__+"]"+msg+"\n");
-#define LOG_DEBUG(msg) logger.addToBuffer("INFO "+LogTime::now().formatTime()+" "+std::to_string(*(unsigned int *)&std::this_thread::get_id())+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"@"+__FUNCTION__+"]"+msg+"\n");
-
+#define LOG_ERROR(msg) logger.addToBuffer("[ERROR "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
+#define LOG_WARN(msg) logger.addToBuffer("[WARN "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
+#define LOG_DEBUG(msg) logger.addToBuffer("[DEBUG "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
 class LogTime
 {
 public :
