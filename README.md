@@ -109,3 +109,4 @@ B[LogFile] --> D[LogTime]
 欢迎大家评论和指正，不尽感激
 
 [代码github地址](https://github.com/luqiankun/plog)
+[代码gitee地址](https://gitee.com/lqk1949/plog)
