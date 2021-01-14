@@ -75,7 +75,7 @@ A[Logger] --> C[LogBuffer]
 A[Logger] --> D[LogTime]
 B[LogFile] --> D[LogTime]
 ```
-####运行过程
+#### 运行过程
  基本的运行过程为简单的生产者消费者模式，前端线程生产log数据放入日志维护队列，后端线程负责把队列中的数据写入本地
 
 - 情形1
