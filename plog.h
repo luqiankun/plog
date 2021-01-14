@@ -16,23 +16,16 @@
 #include <chrono>
 #include <ctime>
 
+#if (_WIN32 || WIN64)
+#define MY_FILE(x) strrchr(x,'\\')?strrchr(x,'\\')+1:x
+#else
+#define MYFILE(x) strrchr(x,'/')?strrchr(x,'/')+1:x
+#endif
 namespace fs = std::filesystem;
-#define LOG_INFO(msg) {std::stringstream ss; \
-                    ss<<"[INFO "<<LogTime::now().formatTime()<<" "<<std::this_thread::get_id()<<" "<<fs::path(__FILE__).filename().string()<<":"<<std::to_string(__LINE__)<<"]"<<msg<<std::endl;\
-                        logger.addToBuffer(ss.str());\
-}
-#define LOG_WARN(msg) {std::stringstream ss; \
-                    ss<<"[WARN "<<LogTime::now().formatTime()<<" "<<std::this_thread::get_id()<<" "<<fs::path(__FILE__).filename().string()<<":"<<std::to_string(__LINE__)<<"]"<<msg<<std::endl;\
-                        logger.addToBuffer(ss.str());\
-}
-#define LOG_DEBUG(msg) {std::stringstream ss; \
-                    ss<<"[DEBUG "<<LogTime::now().formatTime()<<" "<<std::this_thread::get_id()<<" "<<fs::path(__FILE__).filename().string()<<":"<<std::to_string(__LINE__)<<"]"<<msg<<std::endl;\
-                        logger.addToBuffer(ss.str());\
-}
-#define LOG_ERROR(msg) {std::stringstream ss; \
-                    ss<<"[ERROR "<<LogTime::now().formatTime()<<" "<<std::this_thread::get_id()<<" "<<fs::path(__FILE__).filename().string()<<":"<<std::to_string(__LINE__)<<"]"<<msg<<std::endl;\
-                        logger.addToBuffer(ss.str());\
-}
+#define LOG_INFO(msg) logger.addToBuffer("INFO "+LogTime::now().formatTime()+" "+std::to_string(*(unsigned int *)&std::this_thread::get_id())+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"@"+__FUNCTION__+"]"+msg+"\n");
+#define LOG_ERROR(msg) logger.addToBuffer("INFO "+LogTime::now().formatTime()+" "+std::to_string(*(unsigned int *)&std::this_thread::get_id())+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"@"+__FUNCTION__+"]"+msg+"\n");
+#define LOG_WARN(msg) logger.addToBuffer("INFO "+LogTime::now().formatTime()+" "+std::to_string(*(unsigned int *)&std::this_thread::get_id())+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"@"+__FUNCTION__+"]"+msg+"\n");
+#define LOG_DEBUG(msg) logger.addToBuffer("INFO "+LogTime::now().formatTime()+" "+std::to_string(*(unsigned int *)&std::this_thread::get_id())+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"@"+__FUNCTION__+"]"+msg+"\n");
 
 class LogTime
 {
@@ -193,7 +186,8 @@ void Logger::initLogger()
                 curr_in_buffer = std::shared_ptr<LogBuffer>(temp);
                 log_date.push_front(curr_in_buffer);
             }
-
+            ready = false;
+            lck.unlock();
             while (curr_in_buffer != curr_out_buffer)
             {
                 if (curr_out_buffer->getStatus() == LogBuffer::status::FULL)
@@ -204,8 +198,7 @@ void Logger::initLogger()
                 log_date.pop_back();
                 curr_out_buffer = log_date.back();
             }
-            ready = false;
-            lck.unlock();
+
         }
     });
     th = std::make_shared<std::thread>(x);
