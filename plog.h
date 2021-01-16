@@ -12,6 +12,7 @@
 #include <condition_variable>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <chrono>
 #include <ctime>
