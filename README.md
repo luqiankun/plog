@@ -51,6 +51,9 @@
       //Logger::initLogger(argv[0],1024);//每个缓冲区大小1024，（ps:好像大小没有啥太大影响）
       //Logger::initLogger(argv[0],1024, "./mylogs");//自定义目录
       //Logger::initLogger(argv[0],1024,"./mylogs",1*100*1024);//1MB最大文件
+      //使用结束后关闭logger
+      //关闭功能还没完善，目前只是一个延时函数保证日志不丢失，后续改进
+      Logger::showDownLogger();
   }
  ```
 ```c++
