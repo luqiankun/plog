@@ -50,11 +50,10 @@
   #include "plog.h"
   //主程序中初始化
   int main(int argc,char* argv[]){
-      auto logger=Logger(argv[0]);//名称必须是logger
-      //auto logger=Logger(argv[0],1024);//每个缓冲区大小1024，（ps:好像大小没有啥太大影响）
-      //auto logger=Logger(argv[0],1024, "./mylogs");//自定义目录
-      //auto logger=Logger(argv[0],1024,"./mylogs",1*100*1024);//1MB最大文件
-      logger.initLogger();//必须初始化，否则无法写入本地
+      Logger::initLogger(argv[0]);
+      //Logger::initLogger(argv[0],1024);//每个缓冲区大小1024，（ps:好像大小没有啥太大影响）
+      //Logger::initLogger(argv[0],1024, "./mylogs");//自定义目录
+      //Logger::initLogger(argv[0],1024,"./mylogs",1*100*1024);//1MB最大文件
   }
  ```
 ```c++
