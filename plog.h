@@ -340,5 +340,17 @@ std::string LogTime::formatTime() const
     snprintf(format, sizeof(format), "%s.%06u", dateTime().c_str(), micro);
     return format;
 }
-
+/*******************************/
+std::list<std::shared_ptr<LogBuffer>>  Logger::log_date;
+std::shared_ptr<LogBuffer> Logger::curr_in_buffer= nullptr;
+std::shared_ptr<LogBuffer> Logger::curr_out_buffer= nullptr;
+std::shared_ptr<LogFile> Logger::file= nullptr;
+uint64_t Logger::len;
+std::string Logger::path;
+uintmax_t Logger::size;
+std::mutex Logger::mu;
+std::condition_variable Logger::cv;
+std::shared_ptr<std::thread> Logger::th;
+std::shared_ptr<std::thread> Logger::th_;
+bool Logger::ready= false;
 #endif //UNTITLED_PLOG_H
