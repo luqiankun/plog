@@ -125,7 +125,8 @@ public:
 
     static void initLogger(const std::string &argv, uint64_t len = 4096, const std::string &path = "./log",
                            uintmax_t size = 1000 * 10 * 1024);//默认单个文件10MB
-
+//TODO 日志关闭功能，目前仅仅是使用延时来等待关闭前保证数据写入
+    static void showDownLogger();;
 public:
     static std::list<std::shared_ptr<LogBuffer>> log_date;//log数据
     static std::shared_ptr<LogBuffer> curr_in_buffer;//当前的写入buffer
@@ -228,10 +229,12 @@ void Logger::initLogger(const std::string &argv, uint64_t len_, const std::strin
     th->detach();
 }
 
+void Logger::showDownLogger()
+{std::this_thread::sleep_for(std::chrono::seconds(2));}
+
 /******************************************/
 LogBuffer::LogBuffer(uint64_t len) : max_size(len), curr_pos(0), can_use(len), curr_status(status::FREE)
-{
-}
+{}
 
 bool LogBuffer::append(const std::string &str)
 {
@@ -340,11 +343,12 @@ std::string LogTime::formatTime() const
     snprintf(format, sizeof(format), "%s.%06u", dateTime().c_str(), micro);
     return format;
 }
+
 /*******************************/
 std::list<std::shared_ptr<LogBuffer>>  Logger::log_date;
-std::shared_ptr<LogBuffer> Logger::curr_in_buffer= nullptr;
-std::shared_ptr<LogBuffer> Logger::curr_out_buffer= nullptr;
-std::shared_ptr<LogFile> Logger::file= nullptr;
+std::shared_ptr<LogBuffer> Logger::curr_in_buffer = nullptr;
+std::shared_ptr<LogBuffer> Logger::curr_out_buffer = nullptr;
+std::shared_ptr<LogFile> Logger::file = nullptr;
 uint64_t Logger::len;
 std::string Logger::path;
 uintmax_t Logger::size;
@@ -352,5 +356,6 @@ std::mutex Logger::mu;
 std::condition_variable Logger::cv;
 std::shared_ptr<std::thread> Logger::th;
 std::shared_ptr<std::thread> Logger::th_;
-bool Logger::ready= false;
+bool Logger::ready = false;
+
 #endif //UNTITLED_PLOG_H
