@@ -16,6 +16,7 @@
 #include <string>
 #include <chrono>
 #include <ctime>
+#include <cstring>
 
 #if (_WIN32 || WIN64)
 #define MY_FILE(x) strrchr(x,'\\')?strrchr(x,'\\')+1:x
