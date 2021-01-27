@@ -32,10 +32,11 @@ inline std::string pid()
 }
 
 namespace fs = std::filesystem;
-#define LOG_INFO(msg) logger.addToBuffer("[INFO "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
-#define LOG_ERROR(msg) logger.addToBuffer("[ERROR "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
-#define LOG_WARN(msg) logger.addToBuffer("[WARN "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
-#define LOG_DEBUG(msg) logger.addToBuffer("[DEBUG "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
+#define LOG_INFO(msg) Logger::addToBuffer("[INFO "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
+#define LOG_ERROR(msg) Logger::addToBuffer("[ERROR "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
+#define LOG_WARN(msg) Logger::addToBuffer("[WARN "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
+#define LOG_DEBUG(msg) Logger::addToBuffer("[DEBUG "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
+
 class LogTime
 {
 public :
@@ -116,32 +117,57 @@ private:
 class Logger
 {
 public:
-    explicit Logger(const std::string &argv, uint64_t len = 4096, const std::string &path = "./log",
-                    uintmax_t size = 1000 * 10 * 1024);//默认单个文件10MB
+    explicit Logger();
 
-    void write(const std::string &msg) const;
+    static void write(const std::string &msg);
 
-    void addToBuffer(const std::string &msg);
+    static void addToBuffer(const std::string &msg);
 
-    void initLogger();
+    static void initLogger(const std::string &argv, uint64_t len = 4096, const std::string &path = "./log",
+                           uintmax_t size = 1000 * 10 * 1024);//默认单个文件10MB
 
 public:
-    std::list<std::shared_ptr<LogBuffer>> log_date;//log数据
-    std::shared_ptr<LogBuffer> curr_in_buffer;//当前的写入buffer
-    std::shared_ptr<LogBuffer> curr_out_buffer;//当前的持久化buffer
-    std::shared_ptr<LogFile> file;
-    uint64_t len;
-    std::string path;
-    uintmax_t size;
-    std::mutex mu;
-    std::condition_variable cv;
-    std::shared_ptr<std::thread> th;
-    std::shared_ptr<std::thread> th_;
-    bool ready;
+    static std::list<std::shared_ptr<LogBuffer>> log_date;//log数据
+    static std::shared_ptr<LogBuffer> curr_in_buffer;//当前的写入buffer
+    static std::shared_ptr<LogBuffer> curr_out_buffer;//当前的持久化buffer
+    static std::shared_ptr<LogFile> file;
+    static uint64_t len;
+    static std::string path;
+    static uintmax_t size;
+    static std::mutex mu;
+    static std::condition_variable cv;
+    static std::shared_ptr<std::thread> th;
+    static std::shared_ptr<std::thread> th_;
+    static bool ready;
 };
 
 /***********************************************/
-Logger::Logger(const std::string &argv, uint64_t len_, const std::string &path_, const uintmax_t size_)
+Logger::Logger()
+= default;
+
+void Logger::write(const std::string &msg)
+{
+    file->writeMessage(msg);
+}
+
+void Logger::addToBuffer(const std::string &msg)
+{
+    std::unique_lock<std::mutex> mut(mu);
+    if ((*log_date.begin())->append(msg))
+    {
+    } else
+    {
+        auto *temp = new LogBuffer(len);
+        curr_in_buffer = std::shared_ptr<LogBuffer>(temp);
+        log_date.push_front(curr_in_buffer);
+        (*log_date.begin())->append(msg);
+        ready = true;
+        cv.notify_all();
+    }
+}
+
+void Logger::initLogger(const std::string &argv, uint64_t len_, const std::string &path_,
+                        uintmax_t size_)
 {
     len = len_;
     path = path_;
@@ -153,34 +179,7 @@ Logger::Logger(const std::string &argv, uint64_t len_, const std::string &path_,
     curr_in_buffer = std::shared_ptr<LogBuffer>(temp);
     log_date.push_back(curr_in_buffer);
     curr_out_buffer = log_date.back();
-}
-
-void Logger::write(const std::string &msg) const
-{
-    file->writeMessage(msg);
-
-}
-
-void Logger::addToBuffer(const std::string &msg)
-{
-    std::unique_lock<std::mutex> mut(mu);
-    if ((*log_date.begin())->append(msg))
-    {
-    }
-    else
-    {
-        auto *temp = new LogBuffer(len);
-        curr_in_buffer = std::shared_ptr<LogBuffer>(temp);
-        log_date.push_front(curr_in_buffer);
-        (*log_date.begin())->append(msg);
-        ready = true;
-        cv.notify_all();
-    }
-}
-
-void Logger::initLogger()
-{
-    auto x = ([&]
+    auto xth = ([&]
     {
         while (true)
         {
@@ -195,8 +194,8 @@ void Logger::initLogger()
                 curr_in_buffer = std::shared_ptr<LogBuffer>(temp);
                 log_date.push_front(curr_in_buffer);
             }
-            ready = false;
-            lck.unlock();
+            file->file.open(path + "/" + file->curr_file_name,
+                            std::ios::binary | std::ios::app | std::ios::in | std::ios::out);
             while (curr_in_buffer != curr_out_buffer)
             {
                 if (curr_out_buffer->getStatus() == LogBuffer::status::FULL)
@@ -207,15 +206,17 @@ void Logger::initLogger()
                 log_date.pop_back();
                 curr_out_buffer = log_date.back();
             }
-
+            file->file.close();
+            ready = false;
+            lck.unlock();
         }
     });
-    th = std::make_shared<std::thread>(x);
+    th = std::make_shared<std::thread>(xth);
     auto x_ = ([&]
     {
         while (true)
         {
-            std::this_thread::sleep_for(std::chrono::seconds(2));
+            std::this_thread::sleep_for(std::chrono::seconds(1));
             std::unique_lock<std::mutex> lck(mu);
             ready = true;
             cv.notify_all();
@@ -223,7 +224,6 @@ void Logger::initLogger()
         }
     });
     th_ = std::make_shared<std::thread>(x_);
-
     th_->detach();
     th->detach();
 }
@@ -241,8 +241,7 @@ bool LogBuffer::append(const std::string &str)
         can_use = 0;
         curr_pos = max_size;
         return false;
-    }
-    else
+    } else
     {
         data.append(str);
         curr_pos += str.length();
@@ -291,9 +290,10 @@ void LogFile::writeMessage(const std::string &msg)
     }
     if (!file.is_open())
     {
-        file.open(path + "/" + curr_file_name, std::ios::app);
+        file.open(path + "/" + curr_file_name, std::ios::binary | std::ios::app | std::ios::in | std::ios::out);
     }
     file << msg;
+    //file.close();
 }
 
 LogFile::~LogFile()
