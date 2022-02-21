@@ -37,6 +37,10 @@ namespace fs = std::filesystem;
 #define LOG_WARN(msg) Logger::addToBuffer("[WARN "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
 #define LOG_DEBUG(msg) Logger::addToBuffer("[DEBUG "+LogTime::now().formatTime()+" "+pid()+" "+(MY_FILE(__FILE__))+":"+std::to_string(__LINE__)+"-->"+__FUNCTION__+" ] "+msg+"\n");
 
+//用于管理后台线程
+class LogThread;
+
+//获取时间并格式化，提供两种时间格式，一种精确到毫秒（6位小数点），一种精确到小时，作为日志文件的名称使用(每隔1小时一个log文件)
 class LogTime
 {
 public :
@@ -60,6 +64,7 @@ private:
     static const uint32_t SEC = 1000000;
 };
 
+//日志基础容器类，包装了一个std::string，提供状态、可用空间、加入日志、清空、是否为空、返回数据等操作
 class LogBuffer
 {
 public:
@@ -75,13 +80,13 @@ public:
 
     void setStatus(status sta);
 
-    status getStatus() const
+    inline status getStatus() const
     { return curr_status; };
 
-    std::string getData()
+    inline std::string getData()
     { return data; };
 
-    bool empty() const
+    inline bool empty() const
     { return can_use == max_size; }
 
 private:
@@ -92,10 +97,12 @@ private:
     uint64_t max_size;
 };
 
+
 class LogFile
 {
 
 public:
+    //exe_name: 生成日志名称
     LogFile(const std::string &exe_name, const std::string &path, uintmax_t size);
 
     static std::uintmax_t getFileSize(const std::string &file_name);
@@ -137,225 +144,8 @@ public:
     static uintmax_t size;
     static std::mutex mu;
     static std::condition_variable cv;
-    static std::shared_ptr<std::thread> th;
-    static std::shared_ptr<std::thread> th_;
     static bool ready;
+    static LogThread* lt;
 };
-
-/***********************************************/
-Logger::Logger()
-= default;
-
-void Logger::write(const std::string &msg)
-{
-    file->writeMessage(msg);
-}
-
-void Logger::addToBuffer(const std::string &msg)
-{
-    std::unique_lock<std::mutex> mut(mu);
-    if ((*log_date.begin())->append(msg))
-    {
-    } else
-    {
-        auto *temp = new LogBuffer(len);
-        curr_in_buffer = std::shared_ptr<LogBuffer>(temp);
-        log_date.push_front(curr_in_buffer);
-        (*log_date.begin())->append(msg);
-        ready = true;
-        cv.notify_all();
-    }
-}
-
-void Logger::initLogger(const std::string &argv, uint64_t len_, const std::string &path_,
-                        uintmax_t size_)
-{
-    len = len_;
-    path = path_;
-    size = size_;
-    ready = false;
-    auto x = new LogFile(argv, path, size);
-    file = std::shared_ptr<LogFile>(x);
-    auto *temp = new LogBuffer(len);
-    curr_in_buffer = std::shared_ptr<LogBuffer>(temp);
-    log_date.push_back(curr_in_buffer);
-    curr_out_buffer = log_date.back();
-    auto xth = ([&]
-    {
-        while (true)
-        {
-            std::unique_lock<std::mutex> lck(mu);
-            // 如果标志位不为true，则等待
-            cv.wait(lck, [&]
-            { return ready; });
-            auto *temp = new LogBuffer(len);
-            if (!curr_in_buffer->empty())
-            {
-                curr_in_buffer->setStatus(LogBuffer::status::FULL);
-                curr_in_buffer = std::shared_ptr<LogBuffer>(temp);
-                log_date.push_front(curr_in_buffer);
-            }
-            file->file.open(path + "/" + file->curr_file_name,
-                            std::ios::binary | std::ios::app | std::ios::in | std::ios::out);
-            while (curr_in_buffer != curr_out_buffer)
-            {
-                if (curr_out_buffer->getStatus() == LogBuffer::status::FULL)
-                {
-                    std::string msg = (log_date.back())->getData();
-                    write(msg);
-                }
-                log_date.pop_back();
-                curr_out_buffer = log_date.back();
-            }
-            file->file.close();
-            ready = false;
-            lck.unlock();
-        }
-    });
-    th = std::make_shared<std::thread>(xth);
-    auto x_ = ([&]
-    {
-        while (true)
-        {
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            std::unique_lock<std::mutex> lck(mu);
-            ready = true;
-            cv.notify_all();
-            lck.unlock();
-        }
-    });
-    th_ = std::make_shared<std::thread>(x_);
-    th_->detach();
-    th->detach();
-}
-
-void Logger::showDownLogger()
-{std::this_thread::sleep_for(std::chrono::seconds(2));}
-
-/******************************************/
-LogBuffer::LogBuffer(uint64_t len) : max_size(len), curr_pos(0), can_use(len), curr_status(status::FREE)
-{}
-
-bool LogBuffer::append(const std::string &str)
-{
-    if (str.length() > can_use)
-    {
-        setStatus(status::FULL);
-        can_use = 0;
-        curr_pos = max_size;
-        return false;
-    } else
-    {
-        data.append(str);
-        curr_pos += str.length();
-        can_use -= str.length();
-        return true;
-    }
-}
-
-void LogBuffer::setStatus(status sta)
-{
-    curr_status = sta;
-}
-
-/*************************************************/
-LogFile::LogFile(const std::string &exe_name, const std::string &path, const uintmax_t size) : exe_name(exe_name),
-                                                                                               path(path),
-                                                                                               max_size(size)
-{
-    if (!fs::exists(path))
-    {
-        fs::create_directories(path);
-    }
-    fs::path p(exe_name);
-    curr_file_name = LogTime::now().date() + "(" + std::to_string(N) + ")." + p.filename().string() + ".log";
-}
-
-std::uintmax_t LogFile::getFileSize(const std::string &file_name)
-{
-    return fs::file_size(file_name);
-}
-
-void LogFile::writeMessage(const std::string &msg)
-{
-    if (fs::exists(path + "/" + curr_file_name))
-    {
-        if (getFileSize(path + "/" + curr_file_name) >= max_size)
-        {
-            if (file.is_open())
-            {
-                file.close();
-            }
-            N++;
-        }
-        fs::path p(exe_name);
-        curr_file_name = LogTime::now().date() + "(" + std::to_string(N) + ")." + p.filename().string() + ".log";
-    }
-    if (!file.is_open())
-    {
-        file.open(path + "/" + curr_file_name, std::ios::binary | std::ios::app | std::ios::in | std::ios::out);
-    }
-    file << msg;
-    //file.close();
-}
-
-LogFile::~LogFile()
-{
-    if (file.is_open())
-    {
-        file.close();
-    }
-}
-
-/**************************************************************/
-LogTime LogTime::now()
-{
-    uint64_t timestamp;
-    timestamp = std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-    return LogTime(timestamp);
-}
-
-std::string LogTime::dateTime() const
-{
-    static thread_local time_t sec = 0;
-    static thread_local char datetime[26]{};//2021-01-12 12.31.24
-    time_t now_sec = timestamp_ / SEC;
-    if (now_sec > sec)
-    {
-        sec = now_sec;
-        struct tm time_{};
-#ifdef __linux
-        localtime_r(&sec, &time_);
-#else
-        localtime_s(&time_, &sec);
-#endif // __linux
-
-        strftime(datetime, sizeof(datetime), "%Y-%m-%d %H.%M.%S", &time_);
-    }
-    return datetime;
-}
-
-std::string LogTime::formatTime() const
-{
-    char format[28];
-    auto micro = static_cast<uint32_t>(timestamp_ % SEC);
-    snprintf(format, sizeof(format), "%s.%06u", dateTime().c_str(), micro);
-    return format;
-}
-
-/*******************************/
-std::list<std::shared_ptr<LogBuffer>>  Logger::log_date;
-std::shared_ptr<LogBuffer> Logger::curr_in_buffer = nullptr;
-std::shared_ptr<LogBuffer> Logger::curr_out_buffer = nullptr;
-std::shared_ptr<LogFile> Logger::file = nullptr;
-uint64_t Logger::len;
-std::string Logger::path;
-uintmax_t Logger::size;
-std::mutex Logger::mu;
-std::condition_variable Logger::cv;
-std::shared_ptr<std::thread> Logger::th;
-std::shared_ptr<std::thread> Logger::th_;
-bool Logger::ready = false;
 
 #endif //UNTITLED_PLOG_H
