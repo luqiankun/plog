@@ -300,6 +300,8 @@ inline void Logger::start() {
         uint64_t cache_size{0};
         while (cur_in_buf != cur_out_buf) {
           auto msg = cur_out_buf->data();
+          log_buffers.pop_back();
+          cur_out_buf = log_buffers.back();
           if (!log_file_out) break;
           if (!ofs.is_open()) break;
           size_t w_ok_len = 0;
@@ -342,8 +344,6 @@ inline void Logger::start() {
             ofs.close();
             abort();
           }
-          log_buffers.pop_back();
-          cur_out_buf = log_buffers.back();
         }
       }
     });
