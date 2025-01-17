@@ -259,7 +259,7 @@ inline LogHolder::LogHolder(std::string file_name, int line, LogLevel level,
     memcpy(this_time, data_buf, sizeof(data_buf));
     snprintf(this_time + 17, 9, "%c%06dZ", '.', ms);
   } else {
-    std::timespec ts;
+    timespec ts;
     timespec_get(&ts, TIME_UTC);
     if (ts.tv_sec == last_time.tv_sec) {
       // 同一秒
@@ -421,59 +421,83 @@ inline std::vector<uint8_t> LogBuffer::data() {
 }
 
 }  // namespace logger
-#define LOG(Level) \
-  logger::LogHolder(__FILE_NAME__, __LINE__, Level, __PRETTY_FUNCTION__).ss
-#define LOG_IF(Level, Cond) \
-  if (Cond)                 \
-  logger::LogHolder(__FILE_NAME__, __LINE__, Level, __PRETTY_FUNCTION__).ss
-#define LOG_EVERY_N(Level, N)                                  \
-  static std::atomic_uint64_t __FILE_LINE__$__LINE__{0};       \
-  __FILE_LINE__$__LINE__++;                                    \
-  if (__FILE_LINE__$__LINE__ >= N) __FILE_LINE__$__LINE__ = 0; \
-  if (__FILE_LINE__$__LINE__ == 0)                             \
-  logger::LogHolder(__FILE_NAME__, __LINE__, Level, __PRETTY_FUNCTION__).ss
-#define LOG_ONCE(Level)                               \
-  static bool __FILE_LINE__$__LINE__ONCE_FLAG{false}; \
-  bool cur_flag = false;                              \
-  if (!__FILE_LINE__$__LINE__ONCE_FLAG) {             \
-    __FILE_LINE__$__LINE__ONCE_FLAG = true;           \
-    cur_flag = true;                                  \
-  }                                                   \
-  if (cur_flag)                                       \
-  logger::LogHolder(__FILE_NAME__, __LINE__, Level, __PRETTY_FUNCTION__).ss
-#define LOG_INFO(fmt, args...)                                               \
-  {                                                                          \
-    char data[128];                                                          \
-    snprintf(data, sizeof(data), fmt, ##args);                               \
-    logger::LogHolder(__FILE_NAME__, __LINE__, INFO, __PRETTY_FUNCTION__).ss \
-        << data;                                                             \
+// gcc12以下不支持__FILE_NAME__ c++14以上可以编译期计算
+constexpr const char* FILE_NAME(const char* path) {
+  const char* file = path;
+  while (*path) {
+    if (*path++ == '/') {
+      file = path;
+    }
   }
-#define LOG_WARN(fmt, args...)                                               \
-  {                                                                          \
-    char data[128];                                                          \
-    snprintf(data, sizeof(data), fmt, ##args);                               \
-    logger::LogHolder(__FILE_NAME__, __LINE__, WARN, __PRETTY_FUNCTION__).ss \
-        << data;                                                             \
+  return file;
+}
+#define LOG(Level)                                                             \
+  logger::LogHolder(FILE_NAME(__FILE__), __LINE__, Level, __PRETTY_FUNCTION__) \
+      .ss
+#define LOG_IF(Level, Cond)                                                    \
+  if (Cond)                                                                    \
+  logger::LogHolder(FILE_NAME(__FILE__), __LINE__, Level, __PRETTY_FUNCTION__) \
+      .ss
+#define LOG_EVERY_N(Level, N)                                                  \
+  static std::atomic_uint64_t __FILE_LINE__$__LINE__{0};                       \
+  __FILE_LINE__$__LINE__++;                                                    \
+  if (__FILE_LINE__$__LINE__ >= N) __FILE_LINE__$__LINE__ = 0;                 \
+  if (__FILE_LINE__$__LINE__ == 0)                                             \
+  logger::LogHolder(FILE_NAME(__FILE__), __LINE__, Level, __PRETTY_FUNCTION__) \
+      .ss
+#define LOG_ONCE(Level)                                                        \
+  static bool __FILE_LINE__$__LINE__ONCE_FLAG{false};                          \
+  bool cur_flag = false;                                                       \
+  if (!__FILE_LINE__$__LINE__ONCE_FLAG) {                                      \
+    __FILE_LINE__$__LINE__ONCE_FLAG = true;                                    \
+    cur_flag = true;                                                           \
+  }                                                                            \
+  if (cur_flag)                                                                \
+  logger::LogHolder(FILE_NAME(__FILE__), __LINE__, Level, __PRETTY_FUNCTION__) \
+      .ss
+#define LOG_INFO(fmt, args...)                             \
+  {                                                        \
+    char data[128];                                        \
+    snprintf(data, sizeof(data), fmt, ##args);             \
+    logger::LogHolder(FILE_NAME(__FILE__), __LINE__, INFO, \
+                      __PRETTY_FUNCTION__)                 \
+            .ss                                            \
+        << data;                                           \
   }
-#define LOG_ERROR(fmt, args...)                                               \
-  {                                                                           \
-    char data[128];                                                           \
-    snprintf(data, sizeof(data), fmt, ##args);                                \
-    logger::LogHolder(__FILE_NAME__, __LINE__, ERROR, __PRETTY_FUNCTION__).ss \
-        << data;                                                              \
+#define LOG_WARN(fmt, args...)                             \
+  {                                                        \
+    char data[128];                                        \
+    snprintf(data, sizeof(data), fmt, ##args);             \
+    logger::LogHolder(FILE_NAME(__FILE__), __LINE__, WARN, \
+                      __PRETTY_FUNCTION__)                 \
+            .ss                                            \
+        << data;                                           \
   }
-#define LOG_FATAL(fmt, args...)                                               \
-  {                                                                           \
-    char data[128];                                                           \
-    snprintf(data, sizeof(data), fmt, ##args);                                \
-    logger::LogHolder(__FILE_NAME__, __LINE__, FATAL, __PRETTY_FUNCTION__).ss \
-        << data;                                                              \
+#define LOG_ERROR(fmt, args...)                             \
+  {                                                         \
+    char data[128];                                         \
+    snprintf(data, sizeof(data), fmt, ##args);              \
+    logger::LogHolder(FILE_NAME(__FILE__), __LINE__, ERROR, \
+                      __PRETTY_FUNCTION__)                  \
+            .ss                                             \
+        << data;                                            \
   }
-#define LOG_DEBUG(fmt, args...)                                               \
-  {                                                                           \
-    char data[128];                                                           \
-    snprintf(data, sizeof(data), fmt, ##args);                                \
-    logger::LogHolder(__FILE_NAME__, __LINE__, DEBUG, __PRETTY_FUNCTION__).ss \
-        << data;                                                              \
+#define LOG_FATAL(fmt, args...)                             \
+  {                                                         \
+    char data[128];                                         \
+    snprintf(data, sizeof(data), fmt, ##args);              \
+    logger::LogHolder(FILE_NAME(__FILE__), __LINE__, FATAL, \
+                      __PRETTY_FUNCTION__)                  \
+            .ss                                             \
+        << data;                                            \
+  }
+#define LOG_DEBUG(fmt, args...)                             \
+  {                                                         \
+    char data[128];                                         \
+    snprintf(data, sizeof(data), fmt, ##args);              \
+    logger::LogHolder(FILE_NAME(__FILE__), __LINE__, DEBUG, \
+                      __PRETTY_FUNCTION__)                  \
+            .ss                                             \
+        << data;                                            \
   }
 #endif
